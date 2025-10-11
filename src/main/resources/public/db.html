@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <title>数据库查询页面</title>
+    <!-- Vue 2 -->
+    <script src="/js/vue.js"></script>
+    <!-- Axios -->
+    <script src="/js/axios.js"></script>
+    <!-- Element UI -->
+    <link rel="stylesheet" href="/theme-chalk/index.css">
+    <script src="/theme-chalk/index.js"></script>
+</head>
+<body style="margin:0; height:100vh; overflow:hidden;">
+<div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <!-- 主体 -->
+    <el-main style="flex:1; display:flex; flex-direction:column; padding:20px; overflow:auto;">
+        <!-- 环境 + 应用 下拉框 -->
+        <div style="margin-bottom:10px; display:flex; align-items:center; gap:10px; flex-wrap:nowrap;">
+            <span>环境：</span>
+            <el-select v-model="env" placeholder="选择环境" style="width:150px" @change="fetchApps">
+                <el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option>
+            </el-select>
+
+            <span>数据源：</span>
+            <el-select v-model="app" placeholder="选择应用" style="width:150px">
+                <el-option v-for="item in appOptions" :key="item" :label="item" :value="item"></el-option>
+            </el-select>
+        </div>
+
+        <!-- SQL 输入框 -->
+        <el-input
+                type="textarea"
+                v-model="sql"
+                :rows="10"
+                placeholder="请输入 SQL 语句"
+                style="width:100%; font-family: monospace; margin-bottom:10px;"
+        ></el-input>
+
+        <!-- 提交按钮 -->
+        <el-button type="primary" @click="submit" style="width:120px;">执行</el-button>
+
+        <!-- 历史记录 -->
+        <el-divider>历史记录</el-divider>
+        <el-table :data="history" style="width:100%; margin-bottom:10px;">
+            <el-table-column
+                    prop="display"
+                    label="环境-应用 / SQL">
+            </el-table-column>
+            <el-table-column label="操作" width="150">
+                <template slot-scope="scope">
+                    <el-button size="mini" @click="loadHistory(scope.row)">加载</el-button>
+                    <el-button size="mini" type="danger" @click="removeHistory(scope.$index)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+    </el-main>
+
+    <!-- 底部半屏结果 -->
+    <el-card v-if="dialogVisible" :class="['bottom-card', isFullScreen ? 'full-screen' : '']">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:bold;">执行结果</span>
+            <div>
+                <span style="margin-right:10px;">总记录: {{ total }}</span>
+                <el-button size="mini" @click="toggleFullScreen">{{ isFullScreen ? '半屏' : '全屏' }}</el-button>
+                <el-button size="mini" type="primary" @click="dialogVisible=false">关闭</el-button>
+            </div>
+        </div>
+        <el-divider></el-divider>
+
+        <!-- 分页控件 -->
+        <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+            <el-button size="mini" :disabled="page<=1" @click="prevPage">上一页</el-button>
+            <el-pagination
+                    background
+                    layout="sizes, prev, pager, next"
+                    :page-sizes="[10, 20, 50, 100]"
+                    :page-size="pageSize"
+                    :current-page.sync="page"
+                    :total="total"
+                    @size-change="handleSizeChange"
+                    @current-change="handlePageChange"
+                    style="flex:1; margin:0 10px;"
+            ></el-pagination>
+            <el-button size="mini" :disabled="page>=totalPages" @click="nextPage">下一页</el-button>
+        </div>
+
+        <!-- 表格显示分页数据 -->
+        <el-table :data="resultData" style="width:100%; max-height:70%; overflow:auto;">
+            <el-table-column
+                    v-for="(col,index) in tableColumns"
+                    :key="index"
+                    :prop="col"
+                    :label="col"
+            ></el-table-column>
+        </el-table>
+
+
+    </el-card>
+</div>
+
+<style>
+    .bottom-card {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 50vh; /* 半屏 */
+        z-index: 1000;
+        padding: 10px 20px;
+        box-sizing: border-box;
+        background: #fff;
+        border-top: 1px solid #dcdcdc;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .full-screen {
+        height: 100vh !important; /* 全屏 */
+        top: 0;
+    }
+
+    .el-table {
+        position: static !important;
+    }
+</style>
+
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            env: '',
+            app: '',
+            envOptions: ['pl2', 'pl4', 'vt'],
+            appOptions: [],
+            sql: '',
+            history: [],
+            dialogVisible: false,
+            fullData: [],    // 保存全部结果数据
+            resultData: [],  // 当前页显示数据
+            tableColumns: [],
+            page: 1,
+            pageSize: 10,
+            total: 0,
+            isFullScreen: false
+        },
+        computed: {
+            totalPages() {
+                return Math.ceil(this.total / this.pageSize);
+            }
+        },
+        mounted() {
+            const stored = localStorage.getItem('sqlHistory');
+            this.history = stored ? JSON.parse(stored) : [];
+
+            this.env = 'pl4';
+            this.fetchApps();
+        },
+        methods: {
+            fetchApps() {
+                axios.get('/db/getApps', { params: { env: this.env } })
+                    .then(res => {
+                        this.appOptions = res.data || [];
+                        if (this.appOptions.length > 0) this.app = this.appOptions[0];
+                    })
+                    .catch(err => {
+                        this.$message.error('获取应用列表失败');
+                        console.error(err);
+                    });
+            },
+            submit() {
+                if (!this.sql.trim()) {
+                    this.$message.warning('SQL不能为空');
+                    return;
+                }
+                this.page = 1;
+                this.fetchData();
+
+                const record = {
+                    env: this.env,
+                    app: this.app,
+                    sql: this.sql,
+                    display: `${this.env}-${this.app} / ${this.sql}`
+                };
+                if (!this.history.find(item => item.env === record.env && item.app === record.app && item.sql === record.sql)) {
+                    this.history.unshift(record);
+                    localStorage.setItem('sqlHistory', JSON.stringify(this.history));
+                }
+            },
+            fetchData() {
+                axios.post('/db/select', {
+                    ds: this.env + '-' + this.app,
+                    sql: this.sql
+                })
+                    .then(res => {
+                        const data = Array.isArray(res.data) ? res.data : (res.data.content || []);
+                        this.fullData = data;
+                        this.total = data.length;
+                        this.tableColumns = data.length > 0 ? Object.keys(data[0]) : [];
+                        this.refreshPagedData();
+                        this.dialogVisible = true;
+                    })
+                    .catch(err => {
+                        this.$message.error('请求出错');
+                        console.error(err);
+                    });
+            },
+            refreshPagedData() {
+                const start = (this.page - 1) * this.pageSize;
+                this.resultData = this.fullData.slice(start, start + this.pageSize);
+                this.total = this.fullData.length;
+            },
+            handlePageChange(newPage) {
+                this.page = newPage;
+                this.refreshPagedData();
+            },
+            handleSizeChange(newSize) {
+                this.pageSize = newSize;
+                this.page = 1;
+                this.refreshPagedData();
+            },
+            prevPage() {
+                if (this.page > 1) {
+                    this.page--;
+                    this.refreshPagedData();
+                }
+            },
+            nextPage() {
+                if (this.page < this.totalPages) {
+                    this.page++;
+                    this.refreshPagedData();
+                }
+            },
+            loadHistory(record) {
+                this.env = record.env;
+                this.app = record.app;
+                this.sql = record.sql;
+            },
+            removeHistory(index) {
+                this.history.splice(index, 1);
+                localStorage.setItem('sqlHistory', JSON.stringify(this.history));
+            },
+            toggleFullScreen() {
+                this.isFullScreen = !this.isFullScreen;
+            }
+        }
+    });
+</script>
+</body>
+</html>

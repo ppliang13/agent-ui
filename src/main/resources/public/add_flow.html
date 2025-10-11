@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <title>业务流程配置</title>
+    <!-- Vue2 -->
+    <script src="/js/vue.js"></script>
+    <script src="/js/axios.js"></script>
+    <link rel="stylesheet" href="/theme-chalk/index.css">
+    <script src="/theme-chalk/index.js"></script>
+
+    <style>
+        body {
+            background: #f5f7fa;
+            margin: 0;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        .container {
+            width: 90%;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .code-editor {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            padding: 10px;
+            resize: vertical;
+        }
+        .step-card {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+<div id="app" class="container">
+    <h2>业务流程配置</h2>
+
+    <!-- 流程基本信息 -->
+    <el-form :model="form" label-width="120px">
+        <el-form-item label="流程代码">
+            <el-input v-model="form.processCode" placeholder="如：BIZ001"></el-input>
+        </el-form-item>
+
+        <el-form-item label="流程名称">
+            <el-input v-model="form.processName" placeholder="如：客户授信流程"></el-input>
+        </el-form-item>
+
+        <el-form-item label="流程脚本">
+            <el-input v-model="form.processScript" placeholder="流程控制脚本标识，可选"></el-input>
+        </el-form-item>
+
+        <el-form-item label="流程描述">
+            <el-input type="textarea" v-model="form.processDesc" placeholder="简要描述流程功能"></el-input>
+        </el-form-item>
+    </el-form>
+
+    <el-divider></el-divider>
+
+    <!-- 执行步骤配置 -->
+    <h3>执行步骤配置</h3>
+    <div v-for="(step, index) in form.steps" :key="step.stepId">
+        <el-card class="step-card" shadow="never">
+            <div slot="header" class="clearfix">
+                <span>步骤 {{index + 1}}：{{step.name || '未命名步骤'}}</span>
+                <el-button type="text" style="float:right" @click="removeStep(index)">删除</el-button>
+            </div>
+
+            <el-form label-width="120px">
+                <el-form-item label="步骤名称">
+                    <el-input v-model="step.name" placeholder="如：查询账户信息"></el-input>
+                </el-form-item>
+
+                <el-form-item label="步骤描述">
+                    <el-input v-model="step.desc" placeholder="如：查询账户信息"></el-input>
+                </el-form-item>
+
+                <el-form-item label="步骤类型">
+                    <el-select v-model="step.type" placeholder="请选择类型">
+                        <el-option label="SQL 执行" value="sql"></el-option>
+                        <el-option label="交易请求" value="request"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <!-- SQL 执行 -->
+                <template v-if="step.type === 'sql'">
+                    <el-form-item label="执行环境">
+                        <el-select v-model="step.env" placeholder="选择数据库环境">
+                            <el-option label="DEV" value="DEV"></el-option>
+                            <el-option label="UAT" value="UAT"></el-option>
+                            <el-option label="PROD" value="PROD"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="SQL语句">
+                        <textarea class="code-editor"
+                                  v-model="step.sql"
+                                  placeholder="例如：select * from acc where cst_id='${input#cstid}'"></textarea>
+                    </el-form-item>
+                </template>
+
+                <!-- 请求执行 -->
+                <template v-if="step.type === 'request'">
+                    <el-form-item label="请求环境">
+                        <el-select v-model="step.env" placeholder="选择请求环境">
+                            <el-option label="DEV" value="DEV"></el-option>
+                            <el-option label="UAT" value="UAT"></el-option>
+                            <el-option label="PROD" value="PROD"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="请求报文">
+                        <textarea class="code-editor"
+                                  v-model="step.requestBody"
+                                  placeholder="输入 JSON/XML 报文"></textarea>
+                    </el-form-item>
+                </template>
+            </el-form>
+        </el-card>
+    </div>
+
+    <div style="text-align:center;margin:15px 0;">
+        <el-button type="primary" icon="el-icon-plus" @click="addStep">添加步骤</el-button>
+    </div>
+
+    <el-divider></el-divider>
+
+    <!-- 执行脚本 -->
+    <el-form-item label="Groovy 执行脚本">
+        <textarea class="code-editor"
+                  v-model="form.script"
+                  placeholder="在此输入流程控制脚本，例如：
+run('步骤一')
+check('步骤二')
+run('步骤三')"></textarea>
+    </el-form-item>
+
+    <div style="text-align:right;margin-top:20px;">
+        <el-button type="primary" @click="saveProcess">保存流程</el-button>
+    </div>
+
+    <el-divider></el-divider>
+
+    <div v-if="result">
+        <h3>保存结果</h3>
+        <el-alert :title="result" type="success"></el-alert>
+    </div>
+</div>
+
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            form: {
+                processId: '',
+                processCode: '',
+                processName: '',
+                processScript: '',
+                processDesc: '',
+                script: '',
+                steps: []
+            },
+            result: ''
+        },
+        methods: {
+            uuid() {
+                return 'xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, c => {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            },
+            addStep() {
+                this.form.steps.push({
+                    stepId: this.uuid(),
+                    name: '',
+                    desc: '',
+                    type: '',
+                    env: '',
+                    sql: '',
+                    requestBody: ''
+                });
+            },
+            removeStep(index) {
+                this.form.steps.splice(index, 1);
+            },
+            saveProcess() {
+                if (!this.form.processId) {
+                    this.form.processId = this.uuid();
+                }
+                axios.post('/process/save', this.form)
+                    .then(res => {
+                        this.result = res.data.message || '保存成功';
+                        this.$message.success('保存成功');
+                    })
+                    .catch(err => {
+                        this.$message.error('保存失败');
+                    });
+            }
+        }
+    });
+</script>
+</body>
+</html>

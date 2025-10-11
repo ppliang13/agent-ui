@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <title>数据源新增/修改</title>
+    <script src="/js/vue.js"></script>
+    <script src="/js/axios.js"></script>
+    <!-- Element UI -->
+    <link rel="stylesheet" href="/theme-chalk/index.css">
+    <script src="/theme-chalk/index.js"></script>
+</head>
+<body>
+<div id="app" style="padding:20px; max-width:600px;">
+    <h2>{{ detail.id ? '修改数据源' : '新增数据源' }}</h2>
+    <el-form ref="dataForm" :model="detail" :rules="rules" label-width="120px">
+        <el-form-item label="环境" prop="env">
+            <el-select v-model="detail.env" placeholder="选择环境">
+                <el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option>
+            </el-select>
+        </el-form-item>
+        <el-form-item label="数据源名称" prop="name">
+            <el-input v-model="detail.name"></el-input>
+        </el-form-item>
+        <el-form-item label="类型" prop="type">
+            <el-select v-model="detail.type">
+                <el-option label="mysql" value="mysql"></el-option>
+                <el-option label="oracle" value="oracle"></el-option>
+            </el-select>
+        </el-form-item>
+        <el-form-item label="连接链接" prop="url">
+            <el-input v-model="detail.url"></el-input>
+        </el-form-item>
+        <el-form-item label="驱动" prop="driver">
+            <el-input v-model="detail.driver"></el-input>
+        </el-form-item>
+        <el-form-item label="用户名" prop="username">
+            <el-input v-model="detail.username"></el-input>
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+            <el-input v-model="detail.password" type="password"></el-input>
+        </el-form-item>
+    </el-form>
+    <div style="margin-top:20px; display:flex; gap:10px;">
+        <el-button @click="goBack">返回</el-button>
+        <el-button type="warning" @click="testConn">测试连接</el-button>
+        <el-button type="primary" @click="saveDetail">保存</el-button>
+    </div>
+</div>
+
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            envOptions: ['pl2','pl4','vt'], // 环境选项
+            detail: {
+                id: null,
+                env: 'pl4',
+                name:'',
+                type:'mysql',
+                url:'',
+                driver:'',
+                username:'',
+                password:''
+            },
+            id: null,
+            rules: {
+                env: [{ required: true, message: '请选择环境', trigger: 'change' }],
+                name: [{ required: true, message: '请输入数据源名称', trigger: 'blur' }],
+                type: [{ required: true, message: '请选择类型', trigger: 'change' }],
+                url: [{ required: true, message: '请输入连接链接', trigger: 'blur' }],
+                driver: [{ required: true, message: '请输入驱动', trigger: 'blur' }],
+                username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+                password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+            }
+        },
+        mounted() {
+            const params = new URLSearchParams(window.location.search);
+            this.id = params.get('id');
+            if(this.id) {
+                // 编辑模式，拉取数据
+                axios.get('/db/get', { params:{id:this.id} })
+                    .then(res=>{
+                        this.detail = res.data;
+                        if(!this.detail.env) this.detail.env = 'pl4';
+                    })
+                    .catch(err=>{
+                        console.error(err);
+                        this.$message.error('获取数据失败');
+                    });
+            }
+        },
+        methods: {
+            saveDetail() {
+                this.$refs.dataForm.validate(valid => {
+                    if(!valid) return; // 验证失败，不提交
+                    const api = this.detail.id ? '/db/update' : '/db/add';
+                    axios.post(api, this.detail)
+                        .then(()=>{
+                            this.$message.success(this.detail.id ? '修改成功' : '新增成功');
+                            this.goBack();
+                        })
+                        .catch(err=>{
+                            console.error(err);
+                            this.$message.error('保存失败');
+                        });
+                });
+            },
+            goBack() {
+                window.location.href = '/ds-list.html';
+            },
+            testConn() {
+                this.$refs.dataForm.validate(valid => {
+                    if(!valid) return; // 验证失败，不测试
+                    axios.post('/db/checkConn', this.detail)
+                        .then(res => {
+                            if(res.data === true) {
+                                this.$message.success('连接成功');
+                            } else {
+                                this.$message.error('连接失败');
+                            }
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            this.$message.error('连接异常');
+                        });
+                });
+            }
+        }
+    });
+</script>
+</body>
+</html>

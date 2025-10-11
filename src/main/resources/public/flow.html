@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <title>流程管理可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/2.28.1/jsplumb.min.js"></script>
+    <style>
+        body { margin:0; padding:0; font-family:Arial; }
+        #app { display:flex; height:100vh; }
+        .sidebar { width:300px; border-right:1px solid #ccc; padding:10px; overflow-y:auto; }
+        #canvas { flex:1; position:relative; background:#f9f9f9; border:1px solid #ccc; }
+        .node { position:absolute; width:140px; padding:5px; border-radius:4px; text-align:center; color:white; cursor:move; }
+        .node.request { background:#5c96bc; }
+        .node.sql { background:#f0a65f; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- 左侧步骤管理 -->
+    <div class="sidebar">
+        <h3>步骤管理</h3>
+        <el-input v-model="newStep.name" placeholder="步骤名称" style="width:100%; margin-bottom:5px;"></el-input>
+        <el-select v-model="newStep.type" placeholder="步骤类型" style="width:100%; margin-bottom:5px;">
+            <el-option label="请求" value="request"></el-option>
+            <el-option label="SQL" value="sql"></el-option>
+        </el-select>
+        <el-button type="primary" style="width:100%; margin-bottom:10px;" @click="addStep">新增步骤</el-button>
+
+        <div v-for="step in steps" :key="step.id" style="margin-bottom:10px; border:1px solid #ccc; padding:5px;">
+            <strong>{{ step.name }} ({{ step.type }})</strong>
+            <el-button type="danger" size="mini" style="float:right" @click="removeStep(step.id)">删除</el-button>
+            <div v-if="step.type==='request'" style="margin-top:5px;">
+                <el-input v-model="step.url" placeholder="请求URL" style="width:100%; margin-bottom:5px;"></el-input>
+                <el-input type="textarea" v-model="step.params" placeholder="请求参数(JSON)" style="width:100%; height:60px;"></el-input>
+            </div>
+            <div v-else style="margin-top:5px;">
+                <el-input type="textarea" v-model="step.sql" placeholder="SQL语句" style="width:100%; height:60px; margin-bottom:5px;"></el-input>
+                <el-input type="textarea" v-model="step.params" placeholder="SQL参数(JSON)" style="width:100%; height:60px;"></el-input>
+            </div>
+        </div>
+
+        <el-button type="success" style="width:100%; margin-top:10px;" @click="executeFlow">执行流程</el-button>
+    </div>
+
+    <!-- 右侧画布 -->
+    <div id="canvas"></div>
+</div>
+
+<script>
+    new Vue({
+        el:'#app',
+        data:{
+            steps:[],
+            newStep:{name:'', type:''},
+            nodeCount:0,
+            jsPlumbInstance:null
+        },
+        mounted(){
+            this.jsPlumbInstance = jsPlumb.getInstance({
+                Connector: ["Bezier", { curviness: 50 }],
+                Anchors: ["Bottom", "Top"],
+                Endpoint: ["Dot", { radius:5 }],
+                PaintStyle: { stroke:"#5c96bc", strokeWidth:2 },
+                EndpointStyle: { fill:"#5c96bc" },
+                Container: "canvas"
+            });
+        },
+        methods:{
+            addStep(){
+                if(!this.newStep.name || !this.newStep.type){
+                    this.$message.warning('请填写步骤名称和类型');
+                    return;
+                }
+                const id = 'node'+(++this.nodeCount);
+                const step = Object.assign({id, x:20+this.nodeCount*20, y:20+this.nodeCount*20}, this.newStep);
+                this.steps.push(step);
+
+                // 创建节点 DOM
+                this.$nextTick(()=>{
+                    const nodeEl = document.createElement('div');
+                    nodeEl.className = 'node '+step.type;
+                    nodeEl.id = step.id;
+                    nodeEl.innerText = step.name;
+                    nodeEl.style.left = step.x+'px';
+                    nodeEl.style.top = step.y+'px';
+                    document.getElementById('canvas').appendChild(nodeEl);
+
+                    this.jsPlumbInstance.draggable(nodeEl);
+
+                    this.jsPlumbInstance.makeSource(nodeEl,{
+                        filter:".node",
+                        anchor:"Bottom",
+                        connectorStyle:{ stroke:"#5c96bc", strokeWidth:2 },
+                        maxConnections:-1
+                    });
+                    this.jsPlumbInstance.makeTarget(nodeEl,{
+                        dropOptions:{ hoverClass:"dragHover" },
+                        anchor:"Top",
+                        allowLoop:false
+                    });
+
+                    nodeEl.addEventListener('dblclick', ()=>{
+                        this.$prompt('修改步骤名称','编辑步骤',{ inputValue: step.name })
+                            .then(({value})=>{
+                                step.name = value;
+                                nodeEl.innerText = value;
+                            }).catch(()=>{});
+                    });
+                });
+
+                this.newStep = {name:'', type:''};
+            },
+            removeStep(id){
+                const step = this.steps.find(s=>s.id===id);
+                this.jsPlumbInstance.remove(id);
+                this.steps = this.steps.filter(s=>s.id!==id);
+            },
+            executeFlow(){
+                // 简单示例：按顺序执行步骤
+                let params = {};
+                for(let step of this.steps){
+                    if(step.type==='request'){
+                        console.log(`执行请求: ${step.name}`, step.url, JSON.parse(step.params||'{}'), params);
+                        // 模拟返回参数
+                        params[step.name] = { mock:'请求结果' };
+                    } else {
+                        console.log(`执行SQL: ${step.name}`, step.sql, JSON.parse(step.params||'{}'), params);
+                        params[step.name] = { mock:'SQL结果' };
+                    }
+                }
+                this.$message.success('流程执行完成，控制台可查看执行日志');
+            }
+        }
+    });
+</script>
+</body>
+</html>
+
+
+

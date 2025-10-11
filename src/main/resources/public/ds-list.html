@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <title>数据源管理</title>
+    <script src="/js/vue.js"></script>
+    <script src="/js/axios.js"></script>
+    <!-- Element UI -->
+    <link rel="stylesheet" href="/theme-chalk/index.css">
+    <script src="/theme-chalk/index.js"></script>
+    <style>
+        .status-dot {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .status-dot.success { color: green; }
+        .status-dot.fail { color: red; }
+        .status-dot.unknown { color: gray; }
+    </style>
+</head>
+<body>
+<div id="app" style="padding:20px;">
+    <!-- 查询 + 新增 -->
+    <div style="margin:20px 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span>环境：</span>
+        <el-select v-model="env" placeholder="选择环境" style="width:150px" @change="fetchDatasource">
+            <el-option v-for="item in envOptions" :key="item" :label="item" :value="item"></el-option>
+        </el-select>
+
+        <span>名称：</span>
+        <el-input v-model="searchName" placeholder="请输入名称" style="width:200px"></el-input>
+
+        <span>类型：</span>
+        <el-select v-model="searchType" placeholder="选择类型" style="width:150px" clearable>
+            <el-option label="mysql" value="mysql"></el-option>
+            <el-option label="oracle" value="oracle"></el-option>
+        </el-select>
+
+        <el-button type="primary" @click="fetchDatasource">查询</el-button>
+        <el-button type="success" @click="goAddPage">新增</el-button>
+        <el-button type="info" @click="checkAllConn">检查全部</el-button>
+    </div>
+
+    <!-- 数据源表格 -->
+    <el-table
+            :data="tableData"
+            border
+            style="width:100%;"
+    >
+        <el-table-column prop="id" label="ID" width="50"></el-table-column>
+        <el-table-column prop="name" label="数据源名称" width="120"></el-table-column>
+        <el-table-column prop="type" label="类型" width="70"></el-table-column>
+        <el-table-column prop="url" label="链接"  width="200" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="username" label="用户名" width="70"></el-table-column>
+        <el-table-column prop="createTime" label="创建时间" width="170"></el-table-column>
+        <el-table-column label="操作" width="300">
+            <template slot-scope="scope">
+                <el-button size="mini" type="primary" @click.stop="goEditPage(scope.row)">查看/修改</el-button>
+                <el-button size="mini" type="warning" @click.stop="checkConn(scope.row)">测试连接</el-button>
+                <el-button size="mini" type="danger" @click.stop="deleteDs(scope.row)">删除</el-button>
+            </template>
+        </el-table-column>
+        <el-table-column label="状态" width="80">
+            <template slot-scope="scope">
+                <span :class="['status-dot', scope.row.status || 'unknown']">●</span>
+            </template>
+        </el-table-column>
+    </el-table>
+</div>
+
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            env: 'pl4',
+            envOptions: ['pl2','pl4','vt'],
+            tableData: [],
+            searchName: '',
+            searchType: ''
+        },
+        mounted() {
+            this.fetchDatasource();
+        },
+        methods: {
+            fetchDatasource() {
+                axios.get('/db/dsList', { params:{env:this.env} })
+                    .then(res=>{
+                        let list=res.data||[];
+                        if(this.searchName) list=list.filter(i=>i.name.includes(this.searchName));
+                        if(this.searchType) list=list.filter(i=>i.type===this.searchType);
+                        list.forEach(i=>{ if(!i.status) i.status='unknown'; });
+                        this.tableData=list;
+                    })
+                    .catch(err=>{
+                        console.error('获取数据源失败', err);
+                        this.$message.error('获取数据源失败');
+                    });
+            },
+            goAddPage() {
+                window.location.href = '/ds-edit.html';
+            },
+            goEditPage(row) {
+                window.location.href = '/ds-edit.html?id=' + row.id+'&env='+row.env;
+            },
+            deleteDs(row){
+                this.$confirm('确认删除吗？','提示',{type:'warning'})
+                    .then(()=>{
+                        axios.post('/db/delete',{id:row.id})
+                            .then(()=>{
+                                this.$message.success('删除成功');
+                                this.fetchDatasource();
+                            })
+                            .catch(err=>{
+                                console.error('删除失败', err);
+                                this.$message.error('删除失败');
+                            });
+                    }).catch(()=>{});
+            },
+            // 批量检查所有数据源
+            checkAllConn() {
+                if(!this.tableData || this.tableData.length===0){
+                    this.$message.warning('没有可检查的数据源');
+                    return;
+                }
+                this.tableData.forEach(row => {
+                    // 逐行调用 checkConn 方法
+                    axios.post('/db/checkConn', row)
+                        .then(res => {
+                            if (res.data === true) {
+                                this.$set(row, 'status', 'success');
+                            } else {
+                                this.$set(row, 'status', 'fail');
+                            }
+                        })
+                        .catch(err => {
+                            this.$set(row, 'status', 'fail');
+                            console.error('连接异常', err);
+                        });
+                });
+                this.$message.info('正在检查全部连接，请稍候...');
+            },
+            checkConn(row) {
+                axios.post('/db/checkConn', row)
+                    .then(res => {
+                        if (res.data === true) {
+                            this.$message.success('连接成功');
+                            this.$set(row, 'status', 'success');
+                        } else {
+                            this.$message.error('连接失败');
+                            this.$set(row, 'status', 'fail');
+                        }
+                    })
+                    .catch(err => {
+                        this.$message.error('连接异常');
+                        this.$set(row, 'status', 'fail');
+                        console.error(err);
+                    });
+            }
+
+        }
+    });
+</script>
+</body>
+</html>
