@@ -1,0 +1,55 @@
+version: '3'
+services:
+  mysql-01:
+    image: mysql:8.0
+    container_name: mysql-01
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql1-data:/var/lib/mysql
+    networks:
+      - app-network
+
+  mysql-02:
+    image: mysql:8.0
+    container_name: mysql-02
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql2-data:/var/lib/mysql
+    networks:
+      - app-network
+
+  mysql-03:
+    image: mysql:8.0
+    container_name: mysql-03
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql3-data:/var/lib/mysql
+    networks:
+      - app-network
+
+volumes:
+  mysql1-data:
+  mysql2-data:
+  mysql3-data:
+
+networks:
+  app-network:
+    driver: bridge
