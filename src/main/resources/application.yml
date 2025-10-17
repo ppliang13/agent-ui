@@ -1,0 +1,6 @@
+
+
+env:
+  name: dev
+  default-ds: mysql-01
+  path-catch: ./src/main/resources

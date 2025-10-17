@@ -59,6 +59,11 @@
             <version>3.5.1</version>
         </dependency>
 
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.28</version>  <!-- 使用适合你的项目版本 -->
+        </dependency>
 
     </dependencies>
 

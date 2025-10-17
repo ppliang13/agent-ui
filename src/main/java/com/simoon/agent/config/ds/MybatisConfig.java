@@ -16,7 +16,7 @@ public class MybatisConfig {
     private YamlProp yamlProp;
 
     @Bean
-    public DataSource dynamicDataSource() {
+    public DataSource dynamicRoutingDataSource() {
         DynamicRoutingDataSource dynamicRoutingDataSource = new DynamicRoutingDataSource();
         HashMap<Object, Object> targetDs = new HashMap<>();
         dynamicRoutingDataSource.setTargetDataSources(targetDs);

@@ -31,7 +31,7 @@ public class DataSourceManger {
 
             if (tds == null) {
                 HikariConfig hikariConfig = new HikariConfig();
-                DataSourceInfo dsConfig=EnvConfig.getDS(env,key);
+                DataSourceInfo dsConfig=EnvConfig.getDS(env,dsKey);
                 hikariConfig.setJdbcUrl(dsConfig.getUrl());
                 hikariConfig.setUsername(dsConfig.getUsername());
                 hikariConfig.setPassword(dsConfig.getPassword());
