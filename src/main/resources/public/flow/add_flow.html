@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <title>业务流程配置</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <style>
+        .code-editor{width:100%;height:200px;font-family:monospace;font-size:14px;border:1px solid #dcdfe6;border-radius:6px;padding:10px;resize:vertical;}
+        .step-card{margin-bottom:15px;}
+    </style>
+</head>
+<body>
+<div id="app" class="container">
+    <h2>业务流程配置</h2>
+
+    <el-form :model="form" label-width="120px">
+        <el-form :model="form" label-width="120px">
+            <el-row :gutter="20">
+                <!-- 流程代码 -->
+                <el-col :span="10">
+                    <el-form-item label="流程代码">
+                        <el-input v-model="form.processCode" placeholder="如：BIZ001"></el-input>
+                    </el-form-item>
+                </el-col>
+
+                <!-- 流程名称 -->
+                <el-col :span="10">
+                    <el-form-item label="流程名称">
+                        <el-input v-model="form.processName" placeholder="如：客户授信流程"></el-input>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-row>
+                <!-- 环境信息 -->
+                <el-col :span="10">
+                    <el-form-item label="环境信息">
+                        <el-select v-model="form.env" placeholder="请选择环境">
+                            <el-option label="DEV" value="DEV"></el-option>
+                            <el-option label="UAT" value="UAT"></el-option>
+                            <el-option label="PROD" value="PROD"></el-option>
+                        </el-select>
+                    </el-form-item>
+                </el-col>
+
+                <!-- 设置密码 -->
+                <el-col :span="10">
+                    <el-form-item label="设置密码">
+                        <el-input v-model="form.password" type="password" placeholder="请输入 默认123456"></el-input>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+        </el-form>
+
+        <el-form-item label="执行脚本">
+            <el-input type="textarea" v-model="form.processName"
+                      placeholder="run(stepName);check() "></el-input>
+        </el-form-item>
+        <el-form-item label="流程描述"><el-input type="textarea" v-model="form.processDesc"></el-input></el-form-item>
+    </el-form>
+
+    <el-divider></el-divider>
+    <h3>执行步骤配置</h3>
+    <div v-for="(step,index) in form.steps" :key="step.stepId">
+        <el-card class="step-card" shadow="never">
+            <div slot="header" class="clearfix">
+                <span>步骤 {{index + 1}}：{{step.name || '未命名步骤'}}</span>
+                <el-button type="text" style="float:right" @click="removeStep(index)">删除</el-button>
+            </div>
+            <step-common :step="step"></step-common>
+            <component :is="getStepComponent(step.type)" :step="step" :env="form.env"></component>
+        </el-card>
+    </div>
+
+    <div style="text-align:center;margin:15px 0;">
+        <el-button type="primary" @click="addStep">添加步骤</el-button>
+    </div>
+
+    <el-divider></el-divider>
+    <el-form-item label="Groovy 执行脚本">
+        <textarea class="code-editor" v-model="form.script"></textarea>
+    </el-form-item>
+
+    <div style="text-align:right;margin-top:20px;">
+        <el-button type="primary" @click="saveProcess">保存流程</el-button>
+    </div>
+</div>
+
+<!-- 引入 JS 文件 -->
+<script src="js/step-common.js"></script>
+<script src="js/step-sql.js"></script>
+<script src="js/step-request.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
+
+

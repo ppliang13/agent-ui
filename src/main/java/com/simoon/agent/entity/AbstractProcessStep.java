@@ -14,6 +14,7 @@ public abstract class AbstractProcessStep  {
     protected String desc;
     protected Map<String,String> input;
     protected Object output;
+    protected boolean executed=false;
 
     public AbstractProcessStep(String name,String desc) {
         this.name = name;
@@ -39,6 +40,16 @@ public abstract class AbstractProcessStep  {
         this.input = input;
     }
 
+    public String getDesc() {
+        return this.desc;
+    }
+
+    public boolean isExecuted() {
+        return executed;
+    }
+    public void setExecuted(boolean executed) {
+        this.executed = executed;
+    }
 
 
     public abstract Object execute(Map<String, Object> context);
